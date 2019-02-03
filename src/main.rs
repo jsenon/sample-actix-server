@@ -24,7 +24,7 @@ use futures::{Future, Stream};
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
     name: String,
-    number: i32,
+    age: i32,
 }
 
 
@@ -35,7 +35,7 @@ fn index(_: &HttpRequest) -> String {
 
 const MAX_SIZE: usize = 262_144; 
 
-fn index_manual(req: &HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
+fn post_user(req: &HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
     req.payload()
         .from_err()
         .fold(BytesMut::new(), move |mut body, chunk| {
@@ -80,7 +80,7 @@ fn main() {
     server::new(|| {
         App::new()
             .middleware(middleware::Logger::default())
-            .resource("/manual", |r| r.method(http::Method::POST).f(index_manual))
+            .resource("/user", |r| r.method(http::Method::POST).f(post_user))
             .resource("/", |r| r.method(http::Method::GET).f(index))
     }).bind("127.0.0.1:8080")
         .unwrap()
