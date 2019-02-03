@@ -14,12 +14,13 @@ use rustracing::tag::Tag;
 
 use actix_web::{
     error, http, middleware, server, App, AsyncResponder, Error, HttpMessage,
-    HttpRequest, HttpResponse,
+    HttpRequest, HttpResponse, dev::Handler
 };
 
 use bytes::BytesMut;
 use futures::{Future, Stream};
 
+use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -54,11 +55,8 @@ fn post_user(req: &HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error
         .responder()
 }
 
-fn main() {
-    ::std::env::set_var("RUST_LOG", "actix_web=info");
-    env_logger::init();
-    let sys = actix::System::new("json-example");
-
+fn span(_: &HttpRequest) -> String {
+    let time : u64 = 5;
     let (tracer, span_rx) = Tracer::new(AllSampler);
     std::thread::spawn(move || {
         let reporter = JaegerCompactReporter::new("SampleServer").unwrap();
@@ -68,20 +66,39 @@ fn main() {
     });
     {
         let mut span = tracer
-            .span("Main")
+            .span("Span")
             .tag(Tag::new("App", "Sample server"))
-            .tag(Tag::new("Fn", "main"))
+            .tag(Tag::new("Fn", "span"))
             .start();
         span.log(|log| {
-            log.std().message("Starting web server");
+            log.std().message("Testing Span");
         });
+        {
+            let mut span1 = tracer
+                .span("Sleep")
+                .child_of(&span)
+                .tag(Tag::new("App", "Demo-Webapp"))
+                .tag(Tag::new("Fn", "span:sleep"))
+                .start();
+            span1.log(|log| {
+                log.std().message("Retrieve version");
+            });
+            std::thread::sleep(Duration::from_millis(time));
+        }
     }
-    
+    format!("Span generated, Stay {:?}ms sleeping", time)
+}
+
+fn main() {
+    ::std::env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::init();
+    let sys = actix::System::new("sample-actix-servers");
     server::new(|| {
         App::new()
             .middleware(middleware::Logger::default())
             .resource("/user", |r| r.method(http::Method::POST).f(post_user))
             .resource("/", |r| r.method(http::Method::GET).f(index))
+            .resource("/span", |r| r.method(http::Method::GET).f(span))
     }).bind("127.0.0.1:8080")
         .unwrap()
         .shutdown_timeout(1)
