@@ -29,10 +29,8 @@ Create User
 
 ```sh
 curl -X POST http://localhost8080/user -d '{"name": "titi", "age": 10}'
-s```
+```
 
 ### TODO
 
-- [ ] Link frontend to backend
-- [ ] DockerFile
-- [ ] Add opentracing func
+- [ ] Implement opentracing over fn
