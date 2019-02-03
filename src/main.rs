@@ -81,7 +81,7 @@ fn span(_: &HttpRequest) -> String {
                 .tag(Tag::new("Fn", "span:sleep"))
                 .start();
             span1.log(|log| {
-                log.std().message("Retrieve version");
+                log.std().message("Sleeping");
             });
             std::thread::sleep(Duration::from_millis(time));
         }
