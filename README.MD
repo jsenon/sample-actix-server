@@ -31,6 +31,12 @@ Create User
 curl -X POST http://localhost8080/user -d '{"name": "titi", "age": 10}'
 ```
 
+Generate Span and Subspan
+
+```sh
+ curl -X GET http://localhost:8080/span
+```
+
 ### TODO
 
 - [ ] Implement opentracing over fn
