@@ -1,0 +1,13 @@
+apiVersion: skaffold/v1beta4
+kind: Config
+build:
+  artifacts:
+  - image: jsenon/sample-activ-server
+  local:
+      push: true
+      useDockerCLI: false
+      useBuildkit: false
+deploy:
+  kubectl:
+    manifests:
+    - ./kubernetes/*
