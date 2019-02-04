@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sample-actix-server
-  namespace: default
+  namespace: test
 spec:
   replicas: 2
   selector:
@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: sample-actix-server
-        image: docker.io/jsenon/sample-actix-server:latest
+        image: docker.io/jsenon/sample-actix-server
         env:
         - name: MY_APPVER
           value: "0.0.1"
