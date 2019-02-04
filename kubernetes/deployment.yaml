@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-actix-server
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-actix-server
+      version: 0.0.1
+  template:
+    metadata:
+      labels:
+        app: sample-actix-server
+        version: 0.0.1
+    spec:
+      containers:
+      - name: sample-actix-server
+        image: docker.io/jsenon/sample-actix-server:latest
+        env:
+        - name: MY_APPVER
+          value: "0.0.1"
+        - name: MY_APPNAME
+          value: "sample-actix-server"
+        - name: MY_JAEGER_AGENT
+          value: "jaeger-agent.istio-system:6831"
+        - name: MY_SVC_SPAN_NAME
+          value: "sample-actix-server"
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
