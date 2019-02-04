@@ -10,8 +10,24 @@ Simple Actix Server with Opentracing implementation
 
 ## Run
 
+### Locally
+
 ```sh
 cargo run
+```
+
+### On kubernetes with skaffold
+
+You can build and deploy your app every time your code changes:
+
+```sh
+skaffold dev --namespace test --port-forward 
+```
+
+or build and deploy your app once, on demand:
+
+```sh
+skaffold run
 ```
 
 ## Usage
