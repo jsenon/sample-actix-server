@@ -7,6 +7,11 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
+#[macro_use]
+extern crate lazy_static;
+
+#[macro_use] extern crate log;
+
 use rustracing_jaeger::reporter::JaegerCompactReporter;
 use rustracing_jaeger::Tracer;
 use rustracing::sampler::AllSampler;
@@ -23,6 +28,7 @@ use bytes::BytesMut;
 use futures::{Future, Stream};
 
 use std::time::Duration;
+use std::net::ToSocketAddrs;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -38,7 +44,11 @@ impl<S> Middleware<S> for Headers {
 
     /// Method is called when request is ready. It may return
     /// future, which should resolve before next middleware get called.
-    fn start(&self, _: &HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
+        let r = req.clone();
+        let _view = r.headers().get("X-Custom-Id");
+    
+        // println!("Header: {:?}", view.unwrap());
         Ok(Started::Done)
     }
 
@@ -49,14 +59,20 @@ impl<S> Middleware<S> for Headers {
     {
         resp.headers_mut().insert(
             header::HeaderName::try_from("X-VERSION").unwrap(),
-            header::HeaderValue::from_static("0.1.0"));
+            header::HeaderValue::from_static(&APPVER));
         resp.headers_mut().insert(
             header::HeaderName::try_from("X-APP-NAME").unwrap(),
-            header::HeaderValue::from_static("Sample-Actix-server"));
+            header::HeaderValue::from_static(&APPNAME));
         Ok(Response::Done(resp))
     }
 }
 
+lazy_static! {
+    /// This is an example for using doc comment attributes
+        static ref JAEGERENDPOINT: String = std::env::var("MY_JAEGER_AGENT").unwrap_or_else(|_| "127.0.0.1:6831".to_string());
+        static ref APPNAME: String = std::env::var("MY_APP_NAME").unwrap_or_else(|_| "NONAME".to_string());
+        static ref APPVER: String = std::env::var("MY_APP_VER").unwrap_or_else(|_| "0.0.0".to_string());
+}
 
 
 fn index(_: &HttpRequest) -> String {
@@ -87,14 +103,20 @@ fn post_user(req: &HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error
 
 fn span(req: &HttpRequest) -> HttpResponse {
     let r = req.clone();
-    let view = r.headers().get("X-Custom-Id");
-    
-    println!("Header: {:?}", view);
-
+    let _view = r.headers().get("X-Custom-Id");
     let time : u64 = 5;
     let (tracer, span_rx) = Tracer::new(AllSampler);
     std::thread::spawn(move || {
-        let reporter = JaegerCompactReporter::new("SampleServer").unwrap();
+        let tracing_url = &JAEGERENDPOINT;
+        let mut reporter = JaegerCompactReporter::new(&APPNAME).unwrap();
+        if let Ok(mut addrs) = tracing_url.to_socket_addrs() {
+            if let Some(addr) = addrs.next() {
+                info!("Setting tracing endpoint to: {}", addr);
+                println!("Jaeger endpoint: {:?}", addr);
+                reporter.set_agent_addr(addr);
+            }
+        }
+
         for span in span_rx {
             reporter.report(&[span]).unwrap();
         }
@@ -112,7 +134,7 @@ fn span(req: &HttpRequest) -> HttpResponse {
             let mut span1 = tracer
                 .span("Sleep")
                 .child_of(&span)
-                .tag(Tag::new("App", "Demo-Webapp"))
+                .tag(Tag::new("App", "Sample server"))
                 .tag(Tag::new("Fn", "span:sleep"))
                 .start();
             span1.log(|log| {
@@ -130,6 +152,10 @@ fn span(req: &HttpRequest) -> HttpResponse {
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
+    let addr = match std::env::var("SERVER_HOST") {
+        Ok(host) => host,
+        Err(_e) => "0.0.0.0:8000".to_string(),
+    };
     env_logger::init();
     let sys = actix::System::new("sample-actix-server");
     server::new(|| {
@@ -139,11 +165,11 @@ fn main() {
             .resource("/user", |r| r.method(http::Method::POST).f(post_user))
             .resource("/", |r| r.method(http::Method::GET).f(index))
             .resource("/span", |r| r.method(http::Method::GET).f(span))
-    }).bind("127.0.0.1:8080")
+    }).bind(&addr)
         .unwrap()
         .shutdown_timeout(1)
         .start();
 
-    println!("Started http server: 127.0.0.1:8080");
+    println!("Started http server: {}", &addr);
     let _ = sys.run();
 }
