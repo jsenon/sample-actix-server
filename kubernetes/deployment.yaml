@@ -19,9 +19,9 @@ spec:
       - name: sample-actix-server
         image: docker.io/jsenon/sample-actix-server
         env:
-        - name: MY_APPVER
+        - name: MY_APP_VER
           value: "0.0.1"
-        - name: MY_APPNAME
+        - name: MY_APP_NAME
           value: "sample-actix-server"
         - name: MY_JAEGER_AGENT
           value: "jaeger-agent.istio-system:6832"

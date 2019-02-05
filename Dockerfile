@@ -10,7 +10,6 @@ RUN cargo build --release
 FROM gcr.io/distroless/cc
 # copy the build artifact from the build stage
 COPY --from=build /sample-actix-server/target/release/sample-actix-server .
-ENV MY_JAEGER_AGENT=""
 ENV MY_APP_NAME="sample-actix-server"
 ENV MY_APP_VER="0.0.1"
 # set the startup command to run your binary

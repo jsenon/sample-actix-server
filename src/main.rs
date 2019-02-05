@@ -69,7 +69,7 @@ impl<S> Middleware<S> for Headers {
 
 lazy_static! {
     /// This is an example for using doc comment attributes
-        static ref JAEGERENDPOINT: String = std::env::var("MY_JAEGER_AGENT").unwrap_or_else(|_| "127.0.0.1:6831".to_string());
+        static ref JAEGERENDPOINT: String = std::env::var("MY_JAEGER_AGENT").unwrap_or_else(|_| "127.0.0.1:6832".to_string());
         static ref APPNAME: String = std::env::var("MY_APP_NAME").unwrap_or_else(|_| "NONAME".to_string());
         static ref APPVER: String = std::env::var("MY_APP_VER").unwrap_or_else(|_| "0.0.0".to_string());
 }
