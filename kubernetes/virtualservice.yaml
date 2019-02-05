@@ -1,0 +1,33 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: sample-actix-servers
+spec:
+  hosts:
+    - "*"
+  gateways:
+  - demo-istio-gateway # <---- bind to gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/tic"
+    route:
+    - destination:
+        host: sample-actix-server    
+      weight: 100
+  - match: 
+    - uri:
+        prefix: "/user"
+    route:
+    - destination:
+        host: sample-actix-server 
+      weight: 100
+  - match: 
+    - uri:
+        prefix: "/rustspan/"
+    rewrite:
+      uri: "/span"
+    route:
+    - destination:
+        host: sample-actix-servers
+      weight: 100
