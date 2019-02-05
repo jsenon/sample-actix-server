@@ -10,7 +10,8 @@ extern crate serde_derive;
 #[macro_use]
 extern crate lazy_static;
 
-#[macro_use] extern crate log;
+extern crate reqwest;
+// #[macro_use] extern crate log;
 
 use rustracing_jaeger::reporter::JaegerBinaryReporter;
 use rustracing_jaeger::Tracer;
@@ -19,11 +20,12 @@ use rustracing::tag::Tag;
 
 use actix_web::{
     error, http, middleware, server, App, AsyncResponder, Error, HttpMessage,
-    HttpRequest, HttpResponse, Result, client
+    HttpRequest, HttpResponse, Result
 };
 use actix_web::middleware::{Middleware, Started, Response};
 
 use http::{header, HttpTryFrom};
+
 
 use bytes::BytesMut;
 use futures::{Future, Stream};
@@ -35,6 +37,12 @@ struct MyObj {
     name: String,
     age: i32,
 }
+#[derive(Debug, Clone)]
+struct MyHeader {
+    name: String,
+    value: String,
+}
+
 
 struct Headers;  // <- Our middleware
 
@@ -67,6 +75,15 @@ impl<S> Middleware<S> for Headers {
     }
 }
 
+const INCOMING_HEADERS : [&str; 7] = ["x-request-id", 
+                                        "x-b3-traceid", 
+                                        "x-b3-spanid",
+                                        "x-b3-parentspanid", 
+                                        "x-b3-sampled", 
+                                        "x-b3-flags", 
+                                        "x-ot-span-context"
+                                        ];
+
 lazy_static! {
         static ref APPNAME: String = std::env::var("MY_APP_NAME").unwrap_or_else(|_| "NONAME".to_string());
         static ref APPVER: String = std::env::var("MY_APP_VER").unwrap_or_else(|_| "0.0.0".to_string());
@@ -79,26 +96,68 @@ fn index(_: &HttpRequest) -> String {
     format!("Hello")
 }
 
-fn tic(_req: &HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
-    client::ClientRequest::get(&*TAC)
-        .finish().unwrap()
-        .send()
-        .map_err(Error::from)          // <- convert SendRequestError to an Error
-        .and_then(
-            |resp| resp.body()         // <- this is MessageBody type, resolves to complete body
-                .from_err()            // <- convert PayloadError to an Error
-                .and_then(|body| {     // <- we got complete body, now send as server response
-                    Ok(HttpResponse::Ok().body(body))
-                }))
-        .responder()
+fn tic(req: &HttpRequest) -> HttpResponse {
+    //
+    // We need to propagate header
+    //
+    let mut myheaders = Vec::new();
+    let r = req.clone();
+    for i in 0..INCOMING_HEADERS.len() {
+        if r.headers().get(INCOMING_HEADERS[i]).is_some(){
+            let val = r.headers().get(INCOMING_HEADERS[i]).unwrap().to_str().unwrap();
+            let headername = INCOMING_HEADERS[i].to_string();
+            myheaders.push(MyHeader{name: headername.to_string(), value: val.to_string()});
+        }   
+    }
+    println!("Global Headers {:?}", myheaders);
+    println!("Global Headers name: {:?} value: {:?}", myheaders[0].name, myheaders[0].value);
+    
+    let mut injectheaders = reqwest::header::HeaderMap::new();
+    let mut i = 0;
+    for header in &myheaders {
+        let MyHeader { name, .. } = header;
+        if name == "x-request-id" {
+            injectheaders.insert("x-request-id", reqwest::header::HeaderValue::from_str(&myheaders[i].clone().value).unwrap());
+        } else if name == "x-b3-traceid" {
+            injectheaders.insert("x-b3-traceid", reqwest::header::HeaderValue::from_str(&myheaders[i].clone().value).unwrap());
+        } else if name == "x-b3-spanid" {
+            injectheaders.insert("x-b3-spanid", reqwest::header::HeaderValue::from_str(&myheaders[i].clone().value).unwrap());
+        } else if name == "x-b3-parentspanid" {
+            injectheaders.insert("x-b3-parentspanid", reqwest::header::HeaderValue::from_str(&myheaders[i].clone().value).unwrap());
+        } else if name == "x-b3-sampled" {
+            injectheaders.insert("x-b3-sampled", reqwest::header::HeaderValue::from_str(&myheaders[i].clone().value).unwrap());
+        } else if name == "x-b3-flags" {
+            injectheaders.insert("x-b3-flags", reqwest::header::HeaderValue::from_str(&myheaders[i].clone().value).unwrap());
+        } else if name == "x-ot-span-context" {
+            injectheaders.insert("x-ot-span-context", reqwest::header::HeaderValue::from_str(&myheaders[i].clone().value).unwrap());
+        }
+        i = i+1;
+    }
+    println!("Injected Headers {:?}", injectheaders);
+    //
+    // End of Header Propagation
+    //
+
+    let myclient = reqwest::Client::new();
+    let res = myclient.get(&*TAC).headers(injectheaders).send();
+
+    println!("body = {:?}", res);
+    HttpResponse::Ok()
+        .content_type("plain/text")
+        .body("fd")
 }
 
-
-
 fn tac(req: &HttpRequest) -> HttpResponse {
+    let mut myheaders = Vec::new();
     let r = req.clone();
-    let view = r.headers().get("X-APP-NAME");
-    println!("Header {:?}", view);
+    for i in 0..INCOMING_HEADERS.len() {
+        if r.headers().get(INCOMING_HEADERS[i]).is_some(){
+            let val = r.headers().get(INCOMING_HEADERS[i]).unwrap().to_str().unwrap();
+            let headername = INCOMING_HEADERS[i].to_string();
+            println!("Headers Tac: {:?}", val);
+            myheaders.push(MyHeader{name: headername, value: val.to_string()});
+        }   
+    }
     let data = format!("tac");
     HttpResponse::Ok()
         .content_type("plain/text")
