@@ -29,5 +29,5 @@ spec:
       uri: "/span"
     route:
     - destination:
-        host: sample-actix-servers
+        host: sample-actix-server
       weight: 100
