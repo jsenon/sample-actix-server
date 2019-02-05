@@ -42,7 +42,7 @@ spec:
         - name: MY_SVC_SPAN_NAME
           value: "sample-actix-server"
         - name: MY_TAC_API
-          value: "http://mytac"
+          value: "http://mytac/tac"
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
