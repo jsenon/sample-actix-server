@@ -12,7 +12,7 @@ extern crate lazy_static;
 
 #[macro_use] extern crate log;
 
-use rustracing_jaeger::reporter::JaegerCompactReporter;
+use rustracing_jaeger::reporter::JaegerBinaryReporter;
 use rustracing_jaeger::Tracer;
 use rustracing::sampler::AllSampler;
 use rustracing::tag::Tag;
@@ -108,11 +108,10 @@ fn span(req: &HttpRequest) -> HttpResponse {
     let (tracer, span_rx) = Tracer::new(AllSampler);
     std::thread::spawn(move || {
         let tracing_url = &JAEGERENDPOINT;
-        let mut reporter = JaegerCompactReporter::new(&APPNAME).unwrap();
+        let mut reporter = JaegerBinaryReporter::new(&APPNAME).unwrap();
         if let Ok(mut addrs) = tracing_url.to_socket_addrs() {
             if let Some(addr) = addrs.next() {
-                info!("Setting tracing endpoint to: {}", addr);
-                println!("Jaeger endpoint: {:?}", addr);
+               println!("Setting tracing endpoint to: {:?}", addr);
                 reporter.set_agent_addr(addr);
             }
         }
