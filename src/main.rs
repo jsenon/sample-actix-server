@@ -19,16 +19,16 @@ use rustracing::tag::Tag;
 
 use actix_web::{
     error, http, middleware, server, App, AsyncResponder, Error, HttpMessage,
-    HttpRequest, HttpResponse, Result
+    HttpRequest, HttpResponse, Result, client
 };
 use actix_web::middleware::{Middleware, Started, Response};
+
 use http::{header, HttpTryFrom};
 
 use bytes::BytesMut;
 use futures::{Future, Stream};
 
 use std::time::Duration;
-use std::net::ToSocketAddrs;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -68,10 +68,10 @@ impl<S> Middleware<S> for Headers {
 }
 
 lazy_static! {
-    /// This is an example for using doc comment attributes
-        static ref JAEGERENDPOINT: String = std::env::var("MY_JAEGER_AGENT").unwrap_or_else(|_| "127.0.0.1:6832".to_string());
         static ref APPNAME: String = std::env::var("MY_APP_NAME").unwrap_or_else(|_| "NONAME".to_string());
         static ref APPVER: String = std::env::var("MY_APP_VER").unwrap_or_else(|_| "0.0.0".to_string());
+        static ref TAC: String = std::env::var("MY_TAC_API").unwrap_or_else(|_| "http://127.0.0.1:8000/tac".to_string());
+
 }
 
 
@@ -79,6 +79,31 @@ fn index(_: &HttpRequest) -> String {
     format!("Hello")
 }
 
+fn tic(_req: &HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
+    client::ClientRequest::get(&*TAC)
+        .finish().unwrap()
+        .send()
+        .map_err(Error::from)          // <- convert SendRequestError to an Error
+        .and_then(
+            |resp| resp.body()         // <- this is MessageBody type, resolves to complete body
+                .from_err()            // <- convert PayloadError to an Error
+                .and_then(|body| {     // <- we got complete body, now send as server response
+                    Ok(HttpResponse::Ok().body(body))
+                }))
+        .responder()
+}
+
+
+
+fn tac(req: &HttpRequest) -> HttpResponse {
+    let r = req.clone();
+    let view = r.headers().get("X-APP-NAME");
+    println!("Header {:?}", view);
+    let data = format!("tac");
+    HttpResponse::Ok()
+        .content_type("plain/text")
+        .body(data)
+}
 
 const MAX_SIZE: usize = 262_144; 
 
@@ -107,15 +132,7 @@ fn span(req: &HttpRequest) -> HttpResponse {
     let time : u64 = 5;
     let (tracer, span_rx) = Tracer::new(AllSampler);
     std::thread::spawn(move || {
-        let tracing_url = &JAEGERENDPOINT;
-        let mut reporter = JaegerBinaryReporter::new(&APPNAME).unwrap();
-        if let Ok(mut addrs) = tracing_url.to_socket_addrs() {
-            if let Some(addr) = addrs.next() {
-               println!("Setting tracing endpoint to: {:?}", addr);
-                reporter.set_agent_addr(addr);
-            }
-        }
-
+        let reporter = JaegerBinaryReporter::new(&APPNAME).unwrap();
         for span in span_rx {
             reporter.report(&[span]).unwrap();
         }
@@ -150,6 +167,7 @@ fn span(req: &HttpRequest) -> HttpResponse {
 }
 
 fn main() {
+
     ::std::env::set_var("RUST_LOG", "actix_web=info");
     let addr = match std::env::var("SERVER_HOST") {
         Ok(host) => host,
@@ -164,6 +182,9 @@ fn main() {
             .resource("/user", |r| r.method(http::Method::POST).f(post_user))
             .resource("/", |r| r.method(http::Method::GET).f(index))
             .resource("/span", |r| r.method(http::Method::GET).f(span))
+            .resource("/tic", |r| r.method(http::Method::GET).f(tic))
+            .resource("/tac", |r| r.method(http::Method::GET).f(tac))
+
     }).bind(&addr)
         .unwrap()
         .shutdown_timeout(1)

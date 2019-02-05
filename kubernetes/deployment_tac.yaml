@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: sample-actix-server
+  name: mytac
   namespace: test
   labels:
-    app: sample-actix-server
+    app: mytac
 spec:
   selector:
-    app: sample-actix-server
+    app: mytac
   ports:
   - name: http
     port: 80
@@ -17,30 +17,30 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sample-actix-server
+  name: mytac
   namespace: test
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: sample-actix-server
+      app: mytac
       version: 0.0.1
   template:
     metadata:
       labels:
-        app: sample-actix-server
+        app: mytac
         version: 0.0.1
     spec:
       containers:
-      - name: sample-actix-server
+      - name: mytac
         image: docker.io/jsenon/sample-actix-server
         env:
         - name: MY_APP_VER
           value: "0.0.1"
         - name: MY_APP_NAME
-          value: "sample-actix-server"
+          value: "mytac"
         - name: MY_SVC_SPAN_NAME
-          value: "sample-actix-server"
+          value: "mytac"
         - name: MY_TAC_API
           value: "http://mytac"
         imagePullPolicy: Always
@@ -58,3 +58,4 @@ spec:
         - containerPort: 5778
           protocol: TCP
         args: ["--collector.host-port=jaeger-collector.istio-system.svc:14267"]
+---
