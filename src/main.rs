@@ -1,9 +1,9 @@
 extern crate actix;
 extern crate actix_web;
 extern crate bytes;
-extern crate env_logger;
 extern crate futures;
 extern crate serde_json;
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -11,7 +11,9 @@ extern crate serde_derive;
 extern crate lazy_static;
 
 extern crate reqwest;
-// #[macro_use] extern crate log;
+
+#[macro_use]
+extern crate log;
 
 use rustracing_jaeger::reporter::JaegerBinaryReporter;
 use rustracing_jaeger::Tracer;
@@ -31,6 +33,41 @@ use bytes::BytesMut;
 use futures::{Future, Stream};
 
 use std::time::Duration;
+use std::io::Read;
+use std::thread;
+
+use chrono::prelude::*;
+
+
+use log::{Record, Level, Metadata};
+
+struct JSONLogger;
+
+impl log::Log for JSONLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= Level::Info
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            //This is imperfect: special characters in the JSON string are not
+            //properly escaped.
+            let json = format!(r#"{{"time":"{}","level":"{}","version":{},"msg":"{}"}}"#, format!("{}",Utc::now().to_rfc3339()), record.level(),env!("CARGO_PKG_VERSION"), record.args());
+            
+            thread::spawn(move || {
+                //Do something with the JSON.
+                println!("{}",json);
+            });
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: JSONLogger = JSONLogger;
+
+
+
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -109,9 +146,7 @@ fn tic(req: &HttpRequest) -> HttpResponse {
             myheaders.push(MyHeader{name: headername.to_string(), value: val.to_string()});
         }   
     }
-    println!("Global Headers {:?}", myheaders);
-    println!("Global Headers name: {:?} value: {:?}", myheaders[0].name, myheaders[0].value);
-    
+    info!("Global Headers: {:?}", myheaders);
     let mut injectheaders = reqwest::header::HeaderMap::new();
     let mut i = 0;
     for header in &myheaders {
@@ -133,18 +168,23 @@ fn tic(req: &HttpRequest) -> HttpResponse {
         }
         i = i+1;
     }
-    println!("Injected Headers {:?}", injectheaders);
+    info!("Injected Headers: {:?}" , injectheaders);
     //
     // End of Header Propagation
     //
 
     let myclient = reqwest::Client::new();
-    let res = myclient.get(&*TAC).headers(injectheaders).send();
+    let mut response = myclient.get(&*TAC).headers(injectheaders).send()
+        .expect("Failed to send request");
+    info!("Status Response: {:?}", response.status());
+    
+    let mut buf = String::new();
+    response.read_to_string(&mut buf).expect("Failed to read response");
 
-    println!("body = {:?}", res);
+    info!("Response Body: {:?}", buf);
     HttpResponse::Ok()
         .content_type("plain/text")
-        .body("fd")
+        .body(buf)
 }
 
 fn tac(req: &HttpRequest) -> HttpResponse {
@@ -154,7 +194,7 @@ fn tac(req: &HttpRequest) -> HttpResponse {
         if r.headers().get(INCOMING_HEADERS[i]).is_some(){
             let val = r.headers().get(INCOMING_HEADERS[i]).unwrap().to_str().unwrap();
             let headername = INCOMING_HEADERS[i].to_string();
-            println!("Headers Tac: {:?}", val);
+            info!("Headers Tac: {:?}", val);
             myheaders.push(MyHeader{name: headername, value: val.to_string()});
         }   
     }
@@ -227,12 +267,15 @@ fn span(req: &HttpRequest) -> HttpResponse {
 
 fn main() {
 
-    ::std::env::set_var("RUST_LOG", "actix_web=info");
+    ::std::env::set_var("RUST_LOG", "info,actix_web=info");
     let addr = match std::env::var("SERVER_HOST") {
         Ok(host) => host,
         Err(_e) => "0.0.0.0:8000".to_string(),
     };
-    env_logger::init();
+
+    log::set_logger(&LOGGER).unwrap();
+    log::set_max_level(log::LevelFilter::Info);
+
     let sys = actix::System::new("sample-actix-server");
     server::new(|| {
         App::new()
@@ -248,7 +291,7 @@ fn main() {
         .unwrap()
         .shutdown_timeout(1)
         .start();
-
-    println!("Started http server: {}", &addr);
+    // info!(json, "Application started"; "started_at" => format!("{}", time::now().rfc3339()));
+    info!("Started http server {}", &addr);
     let _ = sys.run();
 }
