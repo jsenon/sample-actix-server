@@ -4,7 +4,14 @@ cache: cargo
 services:
   - docker
 
-before_install:
+before_script:
+- rustup component add rustfmt
+script:
+- cargo fmt --all -- --check
+- cargo check
+- cargo test
+
+after_success:
 - docker build -t jsenon/sample-actix-server .
 - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 - docker push jsenon/sample-actix-server:latest
