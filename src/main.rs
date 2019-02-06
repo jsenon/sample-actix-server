@@ -131,7 +131,8 @@ lazy_static! {
 
 
 fn index(_: &HttpRequest) -> String {
-    format!("Hello")
+    let ver: &str = &APPVER;
+    format!("Hello! My version is: {}", ver)
 }
 
 fn tic(req: &HttpRequest) -> HttpResponse {
