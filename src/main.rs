@@ -19,6 +19,7 @@ use rustracing_jaeger::reporter::JaegerBinaryReporter;
 use rustracing_jaeger::Tracer;
 use rustracing::sampler::AllSampler;
 use rustracing::tag::Tag;
+use rustracing_jaeger::span::Span;
 
 use actix_web::{
     error, http, middleware, server, App, AsyncResponder, Error, HttpMessage,
@@ -228,7 +229,6 @@ fn post_user(req: &HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error
 fn span(req: &HttpRequest) -> HttpResponse {
     let r = req.clone();
     let _view = r.headers().get("X-Custom-Id");
-    let time : u64 = 5;
     let (tracer, span_rx) = Tracer::new(AllSampler);
     std::thread::spawn(move || {
         let reporter = JaegerBinaryReporter::new(&APPNAME).unwrap();
@@ -245,25 +245,33 @@ fn span(req: &HttpRequest) -> HttpResponse {
         span.log(|log| {
             log.std().message("Testing Span");
         });
-        {
-            let mut span1 = tracer
-                .span("Sleep")
-                .child_of(&span)
-                .tag(Tag::new("App", "Sample server"))
-                .tag(Tag::new("Fn", "span:sleep"))
-                .start();
-            span1.log(|log| {
-                log.std().message("Sleeping");
-            });
-            std::thread::sleep(Duration::from_millis(time));
-        }
+        get_version(span, tracer);
     }
-    let data = format!("Span generated, stay {}ms sleeping", time);
+    let data = format!("Span generated");
     HttpResponse::Ok()
         .content_type("plain/text")
         .header("X-Hdr", "sample")
         .body(data)
 }
+
+fn get_version(context: Span, tracer: Tracer) -> String {
+    let mut ver = String::new();
+    let time : u64 = 5;
+    let mut span1 = tracer
+        .span("get-version")
+        .child_of(&context)
+        .tag(Tag::new("Version", "0.1"))
+        .start();
+    span1.log(|log| {
+        log.std().message("Retrieve version from cargo.toml");
+    });
+    std::thread::sleep(Duration::from_millis(time));
+    info!("Span0 {:?}", context);
+    info!("Span1 {:?}", span1);
+    ver.push_str(env!("CARGO_PKG_NAME"));
+    ver
+}
+
 
 fn main() {
 
