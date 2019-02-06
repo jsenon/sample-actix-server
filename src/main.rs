@@ -122,8 +122,8 @@ const INCOMING_HEADERS : [&str; 7] = ["x-request-id",
                                         ];
 
 lazy_static! {
-        static ref APPNAME: String = std::env::var("MY_APP_NAME").unwrap_or_else(|_| "NONAME".to_string());
-        static ref APPVER: String = std::env::var("MY_APP_VER").unwrap_or_else(|_| "0.0.0".to_string());
+        static ref APPNAME: String = std::env::var("MY_APP_NAME").unwrap_or_else(|_| env!("CARGO_PKG_NAME").to_string());
+        static ref APPVER: String = env!("CARGO_PKG_VERSION").to_string();
         static ref TAC: String = std::env::var("MY_TAC_API").unwrap_or_else(|_| "http://127.0.0.1:8000/tac".to_string());
 
 }
