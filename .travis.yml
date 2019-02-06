@@ -5,7 +5,7 @@ services:
   - docker
 
 script:
-- cargo check
+- cargo check --release
 - cargo test
 
 after_success:
