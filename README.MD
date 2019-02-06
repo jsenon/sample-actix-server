@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.com/jsenon/sample-actix-server.svg?branch=master)](https://travis-ci.com/jsenon/sample-actix-server)
 # Simple actix Server
 
 Note: **Currently in DRAFT**
