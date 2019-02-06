@@ -4,7 +4,7 @@ cache: cargo
 services:
   - docker
 
-before_install:
+after_install:
 - docker build -t jsenon/sample-actix-server .
 - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 - docker push jsenon/sample-actix-server:latest
@@ -13,6 +13,8 @@ rust:
   - beta
   - nightly
 matrix:
+  include:
+    - rust: stable
   allow_failures:
     - rust: nightly
   fast_finish: true
